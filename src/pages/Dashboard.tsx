@@ -2,6 +2,7 @@ import { motion } from 'motion/react';
 import { Mail, Users, Send, Clock, ArrowUpRight, ArrowDownRight } from 'lucide-react';
 import DashboardLayout from '../components/DashboardLayout';
 import { useAuthStore } from '../store/authStore';
+import { Link } from 'react-router-dom';
 
 const STATS = [
   {
@@ -96,27 +97,27 @@ export default function Dashboard() {
           <div className="bg-[#1F2937] border border-white/10 rounded-2xl p-6">
             <h3 className="text-lg font-heading font-bold text-white mb-4">Quick Actions</h3>
             <div className="space-y-3">
-              <button className="w-full flex items-center justify-between p-4 rounded-xl bg-white/5 hover:bg-white/10 transition-colors border border-white/5 text-left">
+              <Link to="/generate" className="w-full flex items-center justify-between p-4 rounded-xl bg-white/5 hover:bg-white/10 transition-colors border border-white/5 text-left">
                 <div>
                   <p className="text-sm font-medium text-white">Generate Emails</p>
                   <p className="text-xs text-slate-400">Start a new AI generation</p>
                 </div>
                 <ArrowUpRight className="w-4 h-4 text-slate-400" />
-              </button>
-              <button className="w-full flex items-center justify-between p-4 rounded-xl bg-white/5 hover:bg-white/10 transition-colors border border-white/5 text-left">
+              </Link>
+              <Link to="/leads" className="w-full flex items-center justify-between p-4 rounded-xl bg-white/5 hover:bg-white/10 transition-colors border border-white/5 text-left">
                 <div>
                   <p className="text-sm font-medium text-white">Upload Leads</p>
                   <p className="text-xs text-slate-400">Import CSV or connect CRM</p>
                 </div>
                 <ArrowUpRight className="w-4 h-4 text-slate-400" />
-              </button>
-              <button className="w-full flex items-center justify-between p-4 rounded-xl bg-white/5 hover:bg-white/10 transition-colors border border-white/5 text-left">
+              </Link>
+              <Link to="/analytics" className="w-full flex items-center justify-between p-4 rounded-xl bg-white/5 hover:bg-white/10 transition-colors border border-white/5 text-left">
                 <div>
                   <p className="text-sm font-medium text-white">View Analytics</p>
                   <p className="text-xs text-slate-400">Check campaign performance</p>
                 </div>
                 <ArrowUpRight className="w-4 h-4 text-slate-400" />
-              </button>
+              </Link>
             </div>
           </div>
         </div>

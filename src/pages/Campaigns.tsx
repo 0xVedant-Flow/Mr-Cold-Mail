@@ -27,7 +27,7 @@ export default function Campaigns() {
             <p className="text-slate-400">Manage and track your email outreach campaigns.</p>
           </div>
           <Link 
-            to="/generate" 
+            to="/campaigns/create" 
             className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-gradient-to-r from-blue-500 to-indigo-600 text-white font-bold hover:shadow-[0_0_20px_rgba(59,130,246,0.4)] transition-all"
           >
             <Plus className="w-5 h-5" />

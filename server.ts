@@ -64,10 +64,12 @@ app.get('/api/health', (req, res) => {
 app.post('/api/create-checkout-session', async (req, res) => {
   try {
     const stripe = getStripe();
-    const { priceId, planName } = req.body;
+    const { priceId, planName, origin } = req.body;
     
     // In a real app, you'd look up the user's Stripe Customer ID
     // and pass it to the session creation.
+    
+    const baseUrl = origin || process.env.APP_URL || 'http://localhost:3000';
     
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ['card'],
@@ -87,8 +89,8 @@ app.post('/api/create-checkout-session', async (req, res) => {
         },
       ],
       mode: 'subscription',
-      success_url: `${process.env.APP_URL || 'http://localhost:3000'}/dashboard?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${process.env.APP_URL || 'http://localhost:3000'}/billing`,
+      success_url: `${baseUrl}/dashboard?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${baseUrl}/billing`,
     });
 
     res.json({ url: session.url });

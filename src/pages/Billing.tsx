@@ -14,7 +14,7 @@ export default function Billing() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ planName }),
+        body: JSON.stringify({ planName, origin: window.location.origin }),
       });
       
       const data = await res.json();

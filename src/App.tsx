@@ -10,6 +10,8 @@ import LandingPage from './pages/LandingPage';
 import Dashboard from './pages/Dashboard';
 import GenerateEmail from './pages/GenerateEmail';
 import Campaigns from './pages/Campaigns';
+import CreateCampaign from './pages/CreateCampaign';
+import EmailEditor from './pages/EmailEditor';
 import Leads from './pages/Leads';
 import Templates from './pages/Templates';
 import Analytics from './pages/Analytics';
@@ -40,6 +42,8 @@ export default function App() {
         <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
         <Route path="/generate" element={<ProtectedRoute><GenerateEmail /></ProtectedRoute>} />
         <Route path="/campaigns" element={<ProtectedRoute><Campaigns /></ProtectedRoute>} />
+        <Route path="/campaigns/create" element={<ProtectedRoute><CreateCampaign /></ProtectedRoute>} />
+        <Route path="/campaigns/:id/editor" element={<ProtectedRoute><EmailEditor /></ProtectedRoute>} />
         <Route path="/leads" element={<ProtectedRoute><Leads /></ProtectedRoute>} />
         <Route path="/templates" element={<ProtectedRoute><Templates /></ProtectedRoute>} />
         <Route path="/analytics" element={<ProtectedRoute><Analytics /></ProtectedRoute>} />
