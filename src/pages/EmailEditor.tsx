@@ -1,8 +1,36 @@
-import React from 'react';
-import { Link } from 'react-router-dom';
-import { Home, LayoutDashboard, Zap, BarChart2, Settings, Search, ArrowLeft, ChevronRight, ChevronLeft, CheckCircle, RefreshCw, Wand2, Bookmark, Copy } from 'lucide-react';
+import React, { useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { Home, LayoutDashboard, Zap, BarChart2, Settings, Search, ArrowLeft, ChevronRight, ChevronLeft, CheckCircle, RefreshCw, Wand2, Bookmark, Copy, Loader2 } from 'lucide-react';
+import { useAuthStore } from '../store/authStore';
+import { useUsageStore } from '../store/usageStore';
+import { improveEmailContent } from '../lib/gemini';
 
 export default function EmailEditor() {
+  const { user } = useAuthStore();
+  const { emailsGenerated, limit, incrementUsage } = useUsageStore();
+  const navigate = useNavigate();
+  const [emailBody, setEmailBody] = useState(`Hi Sarah,\n\nI noticed TechFlow just expanded their engineering team in Austin—congrats on the growth!\n\nI was digging into how companies are managing their microservices orchestration lately. Given your role as CTO, I thought you might find our latest benchmark report on latency reduction relevant. It specifically highlights a few patterns that similar-scale teams have used to cut overhead by 15%.\n\nWould you be open to a 5-minute chat next week to see if these insights could apply to your current stack?\n\nBest,\n${user?.user_metadata?.full_name || 'The Mr. Cold Mail Team'}`);
+  const [isImproving, setIsImproving] = useState(false);
+
+  const handleImprove = async (type: string) => {
+    if (emailsGenerated >= limit) {
+      alert('You have reached your usage limit. Please upgrade to continue.');
+      navigate('/billing');
+      return;
+    }
+    setIsImproving(true);
+    try {
+      const result = await improveEmailContent(emailBody, type);
+      setEmailBody(result.body);
+      incrementUsage();
+    } catch (error) {
+      console.error('Error improving email:', error);
+      alert('Failed to improve email');
+    } finally {
+      setIsImproving(false);
+    }
+  };
+
   return (
     <div className="bg-[#060D1A] h-screen flex overflow-hidden text-[#E2E8F0] font-sans">
       {/* Panel 1 - Navigation Sidebar */}
@@ -109,7 +137,7 @@ export default function EmailEditor() {
           </div>
           <div className="flex items-center gap-3">
             <div className="text-xs font-semibold text-slate-400 bg-[#121F33] px-3 py-1 rounded-full border border-[#1E2D45]">
-              3 <span className="text-slate-600">of</span> 20
+              {emailsGenerated} <span className="text-slate-600">of</span> {limit}
             </div>
             <div className="flex items-center border border-[#1E2D45] rounded-lg overflow-hidden">
               <button className="p-1.5 hover:bg-[#121F33] border-r border-[#1E2D45] text-slate-400">
@@ -172,11 +200,12 @@ export default function EmailEditor() {
               <label className="text-slate-500 text-sm font-medium mb-2 block">Email Body</label>
               <textarea 
                 className="w-full bg-[#121F33]/50 border-[#1E2D45] focus:border-[#00D4FF] focus:ring-0 text-slate-200 rounded-xl p-6 text-sm leading-relaxed min-h-[400px] resize-none outline-none"
-                defaultValue={`Hi Sarah,\n\nI noticed TechFlow just expanded their engineering team in Austin—congrats on the growth!\n\nI was digging into how companies are managing their microservices orchestration lately. Given your role as CTO, I thought you might find our latest benchmark report on latency reduction relevant. It specifically highlights a few patterns that similar-scale teams have used to cut overhead by 15%.\n\nWould you be open to a 5-minute chat next week to see if these insights could apply to your current stack?\n\nBest,\nThe Mr. Cold Mail Team`}
+                value={emailBody}
+                onChange={(e) => setEmailBody(e.target.value)}
               />
               {/* Word Count Chip */}
               <div className="absolute bottom-4 right-4 px-2 py-1 bg-emerald-500/10 text-emerald-400 text-[10px] font-bold rounded border border-emerald-500/20">
-                102 WORDS
+                {emailBody.trim().split(/\s+/).length} WORDS
               </div>
             </div>
           </div>
@@ -193,14 +222,14 @@ export default function EmailEditor() {
             {/* Improve Dropdown */}
             <div className="relative group">
               <button className="flex items-center gap-2 px-4 py-2.5 bg-[#121F33] text-slate-300 border border-[#1E2D45] rounded-lg text-sm font-medium hover:border-slate-500">
-                <span>Improve</span>
+                {isImproving ? <Loader2 className="w-4 h-4 animate-spin" /> : <span>Improve</span>}
                 <Wand2 className="w-4 h-4" />
               </button>
-              {/* Mock Dropdown Menu */}
+              {/* Dropdown Menu */}
               <div className="hidden group-hover:block absolute bottom-full mb-2 w-40 bg-[#0A1628] border border-[#1E2D45] rounded-lg shadow-xl py-1 z-50">
-                <a href="#" className="block px-4 py-2 text-xs text-slate-300 hover:bg-[#121F33] hover:text-[#00D4FF]">Make Concise</a>
-                <a href="#" className="block px-4 py-2 text-xs text-slate-300 hover:bg-[#121F33] hover:text-[#00D4FF]">More Formal</a>
-                <a href="#" className="block px-4 py-2 text-xs text-slate-300 hover:bg-[#121F33] hover:text-[#00D4FF]">Add Personalization</a>
+                <button onClick={() => handleImprove('Make Concise')} className="block w-full text-left px-4 py-2 text-xs text-slate-300 hover:bg-[#121F33] hover:text-[#00D4FF]">Make Concise</button>
+                <button onClick={() => handleImprove('More Formal')} className="block w-full text-left px-4 py-2 text-xs text-slate-300 hover:bg-[#121F33] hover:text-[#00D4FF]">More Formal</button>
+                <button onClick={() => handleImprove('Add Personalization')} className="block w-full text-left px-4 py-2 text-xs text-slate-300 hover:bg-[#121F33] hover:text-[#00D4FF]">Add Personalization</button>
               </div>
             </div>
             

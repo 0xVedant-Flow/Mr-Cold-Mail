@@ -2,27 +2,24 @@ import { useState } from 'react';
 import { motion } from 'motion/react';
 import { CreditCard, CheckCircle2, Zap, Loader2 } from 'lucide-react';
 import DashboardLayout from '../components/DashboardLayout';
+import AddPaymentMethodModal from '../components/AddPaymentMethodModal';
+import { usePaymentStore } from '../store/paymentStore';
+import { useUsageStore } from '../store/usageStore';
 
 export default function Billing() {
   const [loadingPlan, setLoadingPlan] = useState<string | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [modalData, setModalData] = useState<any>(undefined);
+  const { paymentMethods } = usePaymentStore();
+  const { setPlan, plan, emailsGenerated, limit } = useUsageStore();
 
-  const handleCheckout = async (planName: string) => {
+  const handleCheckout = async (planName: 'free' | 'pro' | 'agency') => {
     setLoadingPlan(planName);
     try {
-      const res = await fetch('/api/create-checkout-session', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ planName, origin: window.location.origin }),
-      });
-      
-      const data = await res.json();
-      if (data.url) {
-        window.location.href = data.url;
-      } else {
-        alert(data.error || 'Something went wrong');
-      }
+      // Simulate API call
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      setPlan(planName);
+      alert(`Successfully upgraded to ${planName} plan!`);
     } catch (error) {
       console.error('Checkout error:', error);
       alert('Failed to start checkout process');
@@ -34,6 +31,11 @@ export default function Billing() {
   return (
     <DashboardLayout>
       <div className="space-y-8">
+        <AddPaymentMethodModal 
+          isOpen={isModalOpen} 
+          onClose={() => { setIsModalOpen(false); setModalData(undefined); }} 
+          initialData={modalData}
+        />
         <div>
           <h1 className="text-3xl font-heading font-bold text-white mb-2">Billing & Usage</h1>
           <p className="text-slate-400">Manage your subscription and track your AI email generation usage.</p>
@@ -50,15 +52,15 @@ export default function Billing() {
               <div className="w-8 h-8 rounded-lg bg-blue-500/10 flex items-center justify-center text-blue-400">
                 <Zap className="w-4 h-4" />
               </div>
-              <h3 className="text-lg font-heading font-bold text-white">Current Usage (Free Trial)</h3>
+              <h3 className="text-lg font-heading font-bold text-white">Current Usage ({plan.toUpperCase()} Plan)</h3>
             </div>
-            <span className="text-sm font-medium text-slate-300">12 / 20 Emails Generated</span>
+            <span className="text-sm font-medium text-slate-300">{emailsGenerated} / {limit} Emails Generated</span>
           </div>
           
           <div className="w-full bg-[#111827] rounded-full h-3 mb-2 overflow-hidden border border-white/5">
-            <div className="bg-gradient-to-r from-blue-500 to-indigo-500 h-3 rounded-full" style={{ width: '60%' }}></div>
+            <div className="bg-gradient-to-r from-blue-500 to-indigo-500 h-3 rounded-full" style={{ width: `${(emailsGenerated / limit) * 100}%` }}></div>
           </div>
-          <p className="text-xs text-slate-500">Resets on Nov 12, 2026. Upgrade to Pro for unlimited emails.</p>
+          <p className="text-xs text-slate-500">Resets on Nov 12, 2026. {plan === 'free' ? 'Upgrade to Pro for unlimited emails.' : 'You have a ' + plan.toUpperCase() + ' plan.'}</p>
         </motion.div>
 
         {/* Pricing Plans */}
@@ -104,11 +106,11 @@ export default function Billing() {
               <li className="flex items-start gap-3 text-slate-300 text-sm"><CheckCircle2 className="w-5 h-5 text-blue-400 shrink-0" /> <span>Export campaigns</span></li>
             </ul>
             <button 
-              onClick={() => handleCheckout('Pro')}
-              disabled={loadingPlan === 'Pro'}
+              onClick={() => handleCheckout('pro')}
+              disabled={loadingPlan === 'pro'}
               className="w-full py-3 rounded-xl bg-gradient-to-r from-blue-500 to-indigo-600 text-white font-semibold flex items-center justify-center gap-2 hover:shadow-[0_0_20px_rgba(59,130,246,0.4)] transition-all disabled:opacity-70"
             >
-              {loadingPlan === 'Pro' ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Upgrade to Pro'}
+              {loadingPlan === 'pro' ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Upgrade to Pro'}
             </button>
           </motion.div>
 
@@ -132,11 +134,11 @@ export default function Billing() {
               <li className="flex items-start gap-3 text-slate-300 text-sm"><CheckCircle2 className="w-5 h-5 text-purple-400 shrink-0" /> <span>Priority support</span></li>
             </ul>
             <button 
-              onClick={() => handleCheckout('Agency')}
-              disabled={loadingPlan === 'Agency'}
+              onClick={() => handleCheckout('agency')}
+              disabled={loadingPlan === 'agency'}
               className="w-full py-3 rounded-xl border border-white/20 text-white font-semibold flex items-center justify-center gap-2 hover:bg-white/5 transition-colors disabled:opacity-70"
             >
-              {loadingPlan === 'Agency' ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Upgrade to Agency'}
+              {loadingPlan === 'agency' ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Upgrade to Agency'}
             </button>
           </motion.div>
         </div>
@@ -155,20 +157,33 @@ export default function Billing() {
             <h3 className="text-lg font-heading font-bold text-white">Payment Methods</h3>
           </div>
           
-          <div className="flex items-center justify-between p-4 border border-white/10 rounded-xl bg-[#111827]">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-8 bg-white rounded flex items-center justify-center">
-                <span className="text-[#1A1F36] font-bold italic text-sm">VISA</span>
+          {paymentMethods.map((method) => (
+            <div key={method.id} className="flex items-center justify-between p-4 border border-white/10 rounded-xl bg-[#111827] mb-4">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-8 bg-white rounded flex items-center justify-center">
+                  <span className="text-[#1A1F36] font-bold italic text-sm">VISA</span>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-white">{method.number}</p>
+                  <p className="text-xs text-slate-500">Expires {method.expiry}</p>
+                </div>
               </div>
-              <div>
-                <p className="text-sm font-medium text-white">Visa ending in 4242</p>
-                <p className="text-xs text-slate-500">Expires 12/28</p>
-              </div>
+              <button 
+                onClick={() => {
+                  setModalData(method);
+                  setIsModalOpen(true);
+                }}
+                className="text-sm text-blue-400 hover:text-blue-300 font-medium"
+              >
+                Edit
+              </button>
             </div>
-            <button className="text-sm text-blue-400 hover:text-blue-300 font-medium">Edit</button>
-          </div>
+          ))}
           
-          <button className="mt-4 text-sm text-slate-400 hover:text-white font-medium flex items-center gap-2">
+          <button 
+            onClick={() => setIsModalOpen(true)}
+            className="mt-4 text-sm text-slate-400 hover:text-white font-medium flex items-center gap-2"
+          >
             + Add payment method
           </button>
         </motion.div>

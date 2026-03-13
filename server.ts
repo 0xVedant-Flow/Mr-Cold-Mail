@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import { createServer as createViteServer } from 'vite';
 import Stripe from 'stripe';
+import OpenAI from 'openai';
 import path from 'path';
 
 const app = express();
@@ -18,6 +19,19 @@ function getStripe(): Stripe {
     stripeClient = new Stripe(key);
   }
   return stripeClient;
+}
+
+// Initialize OpenAI if key is present
+let openaiClient: OpenAI | null = null;
+function getOpenAI(): OpenAI {
+  if (!openaiClient) {
+    const key = process.env.OPENAI_API_KEY;
+    if (!key) {
+      throw new Error('OPENAI_API_KEY environment variable is required');
+    }
+    openaiClient = new OpenAI({ apiKey: key });
+  }
+  return openaiClient;
 }
 
 // Webhook must use raw body
@@ -97,6 +111,45 @@ app.post('/api/create-checkout-session', async (req, res) => {
   } catch (error: any) {
     console.error('Stripe error:', error);
     res.status(500).json({ error: error.message || 'Failed to create checkout session' });
+  }
+});
+
+app.post('/api/generate-email', async (req, res) => {
+  try {
+    const openai = getOpenAI();
+    const { leadName, leadRole, companyName, industry, companyDescription, goal, tone } = req.body;
+
+    const prompt = `
+      Generate a highly personalized cold email for a lead with the following details:
+      - Lead Name: ${leadName || 'there'}
+      - Lead Role: ${leadRole || 'Professional'}
+      - Company Name: ${companyName || 'your company'}
+      - Industry: ${industry || 'your industry'}
+      - Company Description: ${companyDescription || 'N/A'}
+      - Campaign Goal: ${goal}
+      - Tone: ${tone}
+
+      The email should be concise, engaging, and focused on the goal.
+      Return the response in JSON format with "subject" and "body" fields.
+    `;
+
+    const response = await openai.chat.completions.create({
+      model: "gpt-3.5-turbo-0125",
+      messages: [
+        { role: "system", content: "You are an expert cold email copywriter. You generate high-converting personalized emails." },
+        { role: "user", content: prompt }
+      ],
+      response_format: { type: "json_object" }
+    });
+
+    const content = response.choices[0].message.content;
+    if (!content) throw new Error('Failed to generate content');
+    
+    const result = JSON.parse(content);
+    res.json(result);
+  } catch (error: any) {
+    console.error('OpenAI error:', error);
+    res.status(500).json({ error: error.message || 'Failed to generate email' });
   }
 });
 

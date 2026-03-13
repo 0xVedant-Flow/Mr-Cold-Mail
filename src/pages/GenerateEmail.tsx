@@ -1,13 +1,21 @@
 import { useState, useEffect } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { Sparkles, Copy, RefreshCw, Wand2, CheckCircle2 } from 'lucide-react';
 import DashboardLayout from '../components/DashboardLayout';
 import { cn } from '../components/DashboardLayout';
+import { generatePersonalizedEmail } from '../lib/gemini';
+import { useUsageStore } from '../store/usageStore';
+import { useAuthStore } from '../store/authStore';
 
 const GOALS = ['Book meeting', 'Start conversation', 'Demo request'];
 const TONES = ['Professional', 'Friendly', 'Direct'];
 
 export default function GenerateEmail() {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const { emailsGenerated, limit, incrementUsage, saveEmailHistory } = useUsageStore();
+  const { user } = useAuthStore();
   const [isGenerating, setIsGenerating] = useState(false);
   const [isGenerated, setIsGenerated] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -26,21 +34,46 @@ export default function GenerateEmail() {
   const [generatedBody, setGeneratedBody] = useState('');
   const [displayedBody, setDisplayedBody] = useState('');
 
-  const handleGenerate = () => {
-    setIsGenerating(true);
-    setIsGenerated(false);
-    setDisplayedBody('');
-    
-    // Simulate API call
-    setTimeout(() => {
+  // Handle template from navigation state
+  useEffect(() => {
+    if (location.state?.template) {
+      const { template } = location.state;
+      setGeneratedSubject(template.subject);
+      setGeneratedBody(template.body);
+      setIsGenerated(true);
+    }
+  }, [location.state]);
+
+  const handleGenerate = async () => {
+    if (emailsGenerated >= limit) {
+      alert('You have reached your usage limit. Please upgrade to continue.');
+      navigate('/billing');
+      return;
+    }
+
+    try {
+      setIsGenerating(true);
+      setIsGenerated(false);
+      setDisplayedBody('');
+      
+      const data = await generatePersonalizedEmail({
+        ...formData,
+        userName: user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'Sender'
+      });
+      
       setIsGenerating(false);
       setIsGenerated(true);
-      setGeneratedSubject(`Quick question about ${formData.companyName || 'your company'}`);
+      setGeneratedSubject(data.subject);
+      setGeneratedBody(data.body);
       
-      const fullText = `Hi ${formData.leadName || 'there'},\n\nI noticed that ${formData.companyName || 'your company'} is doing some interesting work in the ${formData.industry || 'tech'} space. As a ${formData.leadRole || 'leader'}, you're likely focused on scaling efficiently.\n\nWe help companies like yours automate their outreach and book more meetings using AI personalization. Our platform generates highly targeted emails in seconds.\n\nWould you be open to a brief chat next week to see if this could be a fit for your team?\n\nBest,\nJohn`;
-      
-      setGeneratedBody(fullText);
-    }, 2000);
+      // Increment usage and save history
+      incrementUsage();
+      saveEmailHistory(data.subject, data.body, location.state?.leadId);
+    } catch (err: any) {
+      console.error('Error generating email:', err);
+      setIsGenerating(false);
+      alert(err.message || 'Failed to generate email. Please check your Gemini API key.');
+    }
   };
 
   // Typing effect
@@ -190,7 +223,9 @@ export default function GenerateEmail() {
                 </div>
               </div>
 
-              <button 
+              <motion.button 
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
                 onClick={handleGenerate}
                 disabled={isGenerating}
                 className="w-full py-3.5 rounded-xl bg-gradient-to-r from-blue-500 to-indigo-600 text-white font-bold text-lg hover:shadow-[0_0_20px_rgba(59,130,246,0.4)] transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed mt-6"
@@ -206,7 +241,7 @@ export default function GenerateEmail() {
                     Generate Personalized Email
                   </>
                 )}
-              </button>
+              </motion.button>
             </div>
           </div>
 

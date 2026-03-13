@@ -13,7 +13,9 @@ import Campaigns from './pages/Campaigns';
 import CreateCampaign from './pages/CreateCampaign';
 import EmailEditor from './pages/EmailEditor';
 import Leads from './pages/Leads';
+import LeadProfile from './pages/LeadProfile';
 import Templates from './pages/Templates';
+import History from './pages/History';
 import Analytics from './pages/Analytics';
 import Billing from './pages/Billing';
 import Settings from './pages/Settings';
@@ -45,7 +47,9 @@ export default function App() {
         <Route path="/campaigns/create" element={<ProtectedRoute><CreateCampaign /></ProtectedRoute>} />
         <Route path="/campaigns/:id/editor" element={<ProtectedRoute><EmailEditor /></ProtectedRoute>} />
         <Route path="/leads" element={<ProtectedRoute><Leads /></ProtectedRoute>} />
+        <Route path="/leads/:id" element={<ProtectedRoute><LeadProfile /></ProtectedRoute>} />
         <Route path="/templates" element={<ProtectedRoute><Templates /></ProtectedRoute>} />
+        <Route path="/history" element={<ProtectedRoute><History /></ProtectedRoute>} />
         <Route path="/analytics" element={<ProtectedRoute><Analytics /></ProtectedRoute>} />
         <Route path="/billing" element={<ProtectedRoute><Billing /></ProtectedRoute>} />
         <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />

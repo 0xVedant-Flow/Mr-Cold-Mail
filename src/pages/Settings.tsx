@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { User, Shield, Bell, Camera, Save, Trash2 } from 'lucide-react';
+import { User, Shield, Bell, Camera, Save, Trash2, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
 import DashboardLayout from '../components/DashboardLayout';
 import { cn } from '../components/DashboardLayout';
 import { useAuthStore } from '../store/authStore';
+import { supabase } from '../lib/supabase';
 
 const TABS = [
   { id: 'profile', label: 'Profile', icon: User },
@@ -13,7 +14,67 @@ const TABS = [
 
 export default function Settings() {
   const [activeTab, setActiveTab] = useState('profile');
-  const { user } = useAuthStore();
+  const { user, setUser } = useAuthStore();
+  const [fullName, setFullName] = useState(user?.user_metadata?.full_name || '');
+  const [company, setCompany] = useState(user?.user_metadata?.company || '');
+  const [role, setRole] = useState(user?.user_metadata?.role || '');
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'success' | 'error'>('idle');
+  const [errorMessage, setErrorMessage] = useState('');
+
+  const handleUpdateProfile = async () => {
+    try {
+      setIsSaving(true);
+      setSaveStatus('idle');
+      
+      const { data, error } = await supabase.auth.updateUser({
+        data: { 
+          full_name: fullName,
+          company: company,
+          role: role
+        }
+      });
+
+      if (error) throw error;
+
+      setUser(data.user);
+      setSaveStatus('success');
+      setTimeout(() => setSaveStatus('idle'), 3000);
+    } catch (err: any) {
+      console.error('Error updating profile:', err);
+      setSaveStatus('error');
+      setErrorMessage(err.message || 'Failed to update profile');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const [newPassword, setNewPassword] = useState('');
+  const [isUpdatingPassword, setIsUpdatingPassword] = useState(false);
+  const [passwordStatus, setPasswordStatus] = useState<'idle' | 'success' | 'error'>('idle');
+
+  const handleUpdatePassword = async () => {
+    try {
+      setIsUpdatingPassword(true);
+      setPasswordStatus('idle');
+      
+      const { error } = await supabase.auth.updateUser({
+        password: newPassword
+      });
+
+      if (error) throw error;
+
+      setPasswordStatus('success');
+      setNewPassword('');
+      setTimeout(() => setPasswordStatus('idle'), 3000);
+    } catch (err: any) {
+      console.error('Error updating password:', err);
+      setPasswordStatus('error');
+      setErrorMessage(err.message || 'Failed to update password');
+    } finally {
+      setIsUpdatingPassword(false);
+    }
+  };
 
   return (
     <DashboardLayout>
@@ -62,7 +123,7 @@ export default function Settings() {
                   <div className="flex items-center gap-6">
                     <div className="relative group">
                       <div className="w-24 h-24 rounded-full bg-gradient-to-tr from-purple-500 to-blue-500 flex items-center justify-center text-white font-bold text-3xl overflow-hidden">
-                        {user?.email?.charAt(0).toUpperCase() || 'U'}
+                        {(user?.user_metadata?.full_name || user?.email)?.charAt(0).toUpperCase() || 'U'}
                       </div>
                       <button className="absolute inset-0 bg-black/50 flex items-center justify-center rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
                         <Camera className="w-6 h-6 text-white" />
@@ -81,7 +142,8 @@ export default function Settings() {
                       <label className="text-sm font-medium text-slate-300">Full Name</label>
                       <input 
                         type="text" 
-                        defaultValue={user?.email?.split('@')[0] || 'User'}
+                        value={fullName}
+                        onChange={(e) => setFullName(e.target.value)}
                         className="w-full bg-[#111827] border border-white/10 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50"
                       />
                     </div>
@@ -89,15 +151,17 @@ export default function Settings() {
                       <label className="text-sm font-medium text-slate-300">Email Address</label>
                       <input 
                         type="email" 
-                        defaultValue={user?.email || ''}
-                        className="w-full bg-[#111827] border border-white/10 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                        disabled
+                        value={user?.email || ''}
+                        className="w-full bg-[#111827] border border-white/10 rounded-xl px-4 py-2.5 text-slate-500 cursor-not-allowed"
                       />
                     </div>
                     <div className="space-y-2">
                       <label className="text-sm font-medium text-slate-300">Company</label>
                       <input 
                         type="text" 
-                        defaultValue="Acme Corp"
+                        value={company}
+                        onChange={(e) => setCompany(e.target.value)}
                         className="w-full bg-[#111827] border border-white/10 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50"
                       />
                     </div>
@@ -105,15 +169,39 @@ export default function Settings() {
                       <label className="text-sm font-medium text-slate-300">Role</label>
                       <input 
                         type="text" 
-                        defaultValue="Founder"
+                        value={role}
+                        onChange={(e) => setRole(e.target.value)}
                         className="w-full bg-[#111827] border border-white/10 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50"
                       />
                     </div>
                   </div>
 
+                  {saveStatus === 'error' && (
+                    <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-xl flex items-center gap-3 text-red-400 text-sm">
+                      <AlertCircle className="w-5 h-5 flex-shrink-0" />
+                      {errorMessage}
+                    </div>
+                  )}
+
                   <div className="pt-6 border-t border-white/10 flex justify-end">
-                    <button className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-medium transition-colors">
-                      <Save className="w-4 h-4" /> Save Changes
+                    <button 
+                      onClick={handleUpdateProfile}
+                      disabled={isSaving}
+                      className={cn(
+                        "flex items-center gap-2 px-6 py-2.5 rounded-xl font-medium transition-all",
+                        saveStatus === 'success' 
+                          ? "bg-emerald-500 text-white" 
+                          : "bg-blue-600 hover:bg-blue-500 text-white disabled:opacity-50"
+                      )}
+                    >
+                      {isSaving ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : saveStatus === 'success' ? (
+                        <CheckCircle2 className="w-4 h-4" />
+                      ) : (
+                        <Save className="w-4 h-4" />
+                      )}
+                      {isSaving ? 'Saving...' : saveStatus === 'success' ? 'Saved!' : 'Save Changes'}
                     </button>
                   </div>
                 </motion.div>
@@ -134,21 +222,33 @@ export default function Settings() {
 
                   <div className="space-y-6 max-w-md">
                     <div className="space-y-2">
-                      <label className="text-sm font-medium text-slate-300">Current Password</label>
-                      <input 
-                        type="password" 
-                        className="w-full bg-[#111827] border border-white/10 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50"
-                      />
-                    </div>
-                    <div className="space-y-2">
                       <label className="text-sm font-medium text-slate-300">New Password</label>
                       <input 
                         type="password" 
+                        value={newPassword}
+                        onChange={(e) => setNewPassword(e.target.value)}
                         className="w-full bg-[#111827] border border-white/10 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                        placeholder="••••••••"
                       />
                     </div>
-                    <button className="px-6 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white font-medium transition-colors">
-                      Update Password
+                    <button 
+                      onClick={handleUpdatePassword}
+                      disabled={isUpdatingPassword || !newPassword}
+                      className={cn(
+                        "flex items-center gap-2 px-6 py-2.5 rounded-xl font-medium transition-all",
+                        passwordStatus === 'success' 
+                          ? "bg-emerald-500 text-white" 
+                          : "bg-blue-600 hover:bg-blue-500 text-white disabled:opacity-50"
+                      )}
+                    >
+                      {isUpdatingPassword ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : passwordStatus === 'success' ? (
+                        <CheckCircle2 className="w-4 h-4" />
+                      ) : (
+                        <Shield className="w-4 h-4" />
+                      )}
+                      {isUpdatingPassword ? 'Updating...' : passwordStatus === 'success' ? 'Updated!' : 'Update Password'}
                     </button>
                   </div>
 

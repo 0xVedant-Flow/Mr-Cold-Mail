@@ -1,207 +1,290 @@
+import { useState, useEffect, useMemo } from 'react';
 import { motion } from 'motion/react';
-import { BarChart3, TrendingUp, PieChart as PieChartIcon, Activity } from 'lucide-react';
+import { BarChart3, TrendingUp, Users, Mail, MousePointer2, Calendar, Download, ChevronDown, Loader2 } from 'lucide-react';
 import DashboardLayout from '../components/DashboardLayout';
-import {
-  LineChart,
-  Line,
+import { cn } from '../components/DashboardLayout';
+import { 
+  AreaChart, 
+  Area, 
+  XAxis, 
+  YAxis, 
+  CartesianGrid, 
+  Tooltip, 
+  ResponsiveContainer,
   BarChart,
   Bar,
-  PieChart,
-  Pie,
-  Cell,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  ResponsiveContainer
+  Cell
 } from 'recharts';
-
-const emailsGeneratedData = [
-  { name: 'Mon', emails: 400 },
-  { name: 'Tue', emails: 300 },
-  { name: 'Wed', emails: 550 },
-  { name: 'Thu', emails: 200 },
-  { name: 'Fri', emails: 700 },
-  { name: 'Sat', emails: 100 },
-  { name: 'Sun', emails: 50 },
-];
-
-const campaignPerformanceData = [
-  { name: 'Q3 SaaS', sent: 400, opened: 240, replied: 100 },
-  { name: 'Agency NY', sent: 300, opened: 139, replied: 80 },
-  { name: 'Startup CTOs', sent: 200, opened: 98, replied: 40 },
-  { name: 'Enterprise', sent: 278, opened: 190, replied: 110 },
-];
-
-const leadEngagementData = [
-  { name: 'Highly Engaged', value: 400 },
-  { name: 'Moderately Engaged', value: 300 },
-  { name: 'Low Engagement', value: 300 },
-  { name: 'Unresponsive', value: 200 },
-];
-
-const COLORS = ['#3B82F6', '#8B5CF6', '#10B981', '#F43F5E'];
+import { supabase } from '../lib/supabase';
+import { useAuthStore } from '../store/authStore';
+import { Lead } from '../types';
 
 export default function Analytics() {
+  const { user } = useAuthStore();
+  const [leads, setLeads] = useState<Lead[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [timeRange, setTimeRange] = useState('All Time');
+
+  useEffect(() => {
+    if (!user) return;
+
+    fetchLeads();
+
+    // Set up real-time subscription
+    const channel = supabase
+      .channel('leads-analytics-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'leads',
+          filter: `user_id=eq.${user.id}`
+        },
+        () => {
+          fetchLeads();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user]);
+
+  const fetchLeads = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('leads')
+        .select('*')
+        .order('created_at', { ascending: true });
+
+      if (error) throw error;
+      setLeads(data || []);
+    } catch (err) {
+      console.error('Error fetching analytics data:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const stats = useMemo(() => {
+    const total = leads.length;
+    const contacted = leads.filter(l => l.status === 'Contacted').length;
+    const replied = leads.filter(l => l.status === 'Replied').length;
+    const sent = contacted + replied;
+    
+    const replyRate = sent > 0 ? ((replied / sent) * 100).toFixed(1) : '0';
+    const openRate = total > 0 ? (((contacted + replied) / total) * 100).toFixed(1) : '0';
+
+    return [
+      { label: 'Total Sent', value: sent.toLocaleString(), trend: '+0%', icon: Mail, color: 'text-blue-400' },
+      { label: 'Open Rate', value: `${openRate}%`, trend: '+0%', icon: MousePointer2, color: 'text-emerald-400' },
+      { label: 'Reply Rate', value: `${replyRate}%`, trend: '+0%', icon: TrendingUp, color: 'text-purple-400' },
+      { label: 'Total Leads', value: total.toLocaleString(), trend: '+0%', icon: Users, color: 'text-amber-400' },
+    ];
+  }, [leads]);
+
+  const chartData = useMemo(() => {
+    const days: { [key: string]: { name: string, sent: number, replied: number } } = {};
+    
+    // Get last 7 days
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      const dateStr = d.toISOString().split('T')[0];
+      const dayName = d.toLocaleDateString('en-US', { weekday: 'short' });
+      days[dateStr] = { name: dayName, sent: 0, replied: 0 };
+    }
+
+    leads.forEach(lead => {
+      const date = lead.created_at.split('T')[0];
+      if (days[date]) {
+        if (lead.status === 'Contacted' || lead.status === 'Replied') {
+          days[date].sent += 1;
+        }
+        if (lead.status === 'Replied') {
+          days[date].replied += 1;
+        }
+      }
+    });
+
+    return Object.values(days);
+  }, [leads]);
+
+  const industryData = useMemo(() => {
+    const industries: { [key: string]: number } = {};
+    leads.forEach(l => {
+      const ind = l.industry || 'Unknown';
+      industries[ind] = (industries[ind] || 0) + 1;
+    });
+
+    return Object.entries(industries)
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 5);
+  }, [leads]);
+
+  if (loading) {
+    return (
+      <DashboardLayout>
+        <div className="flex items-center justify-center h-[60vh]">
+          <Loader2 className="w-8 h-8 text-blue-500 animate-spin" />
+        </div>
+      </DashboardLayout>
+    );
+  }
+
   return (
     <DashboardLayout>
       <div className="space-y-8">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <h1 className="text-3xl font-heading font-bold text-white mb-2">Analytics</h1>
-            <p className="text-slate-400">Track your email generation and campaign performance.</p>
+            <p className="text-slate-400">Track your outreach performance and conversion rates.</p>
           </div>
-          <div className="flex items-center gap-2">
-            <select className="bg-[#111827] border border-white/10 rounded-xl px-4 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all">
-              <option>Last 7 Days</option>
-              <option>Last 30 Days</option>
-              <option>This Month</option>
-              <option>This Year</option>
-            </select>
+          <div className="flex items-center gap-3">
+            <div className="relative">
+              <button className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#1F2937] border border-white/10 text-sm font-medium text-slate-300 hover:text-white transition-colors">
+                <Calendar className="w-4 h-4" />
+                {timeRange}
+                <ChevronDown className="w-4 h-4" />
+              </button>
+            </div>
+            <button 
+              onClick={() => window.print()}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-sm font-medium text-slate-300 hover:text-white transition-colors"
+            >
+              <Download className="w-4 h-4" />
+              Export Report
+            </button>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Emails Generated Per Day (Line Chart) */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.1 }}
-            className="bg-[#1F2937] border border-white/10 rounded-2xl p-6"
-          >
-            <div className="flex items-center gap-2 mb-6">
-              <div className="w-8 h-8 rounded-lg bg-blue-500/10 flex items-center justify-center text-blue-400">
-                <TrendingUp className="w-4 h-4" />
+        {/* Key Metrics */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+          {stats.map((stat, idx) => (
+            <motion.div 
+              key={idx}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: idx * 0.1 }}
+              className="bg-[#1F2937] border border-white/10 rounded-2xl p-6"
+            >
+              <div className="flex items-center justify-between mb-4">
+                <div className={cn("w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center", stat.color)}>
+                  <stat.icon className="w-5 h-5" />
+                </div>
+                <span className="text-xs font-bold text-emerald-400 bg-emerald-500/10 px-2 py-1 rounded-full">{stat.trend}</span>
               </div>
-              <h3 className="text-lg font-heading font-bold text-white">Emails Generated Per Day</h3>
+              <p className="text-sm text-slate-500 font-medium">{stat.label}</p>
+              <p className="text-2xl font-heading font-bold text-white mt-1">{stat.value}</p>
+            </motion.div>
+          ))}
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Main Chart */}
+          <div className="lg:col-span-2 bg-[#1F2937] border border-white/10 rounded-2xl p-6">
+            <div className="flex items-center justify-between mb-8">
+              <h3 className="text-lg font-heading font-bold text-white">Outreach Performance (Last 7 Days)</h3>
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 rounded-full bg-blue-500"></div>
+                  <span className="text-xs text-slate-400">Sent</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 rounded-full bg-emerald-500"></div>
+                  <span className="text-xs text-slate-400">Replied</span>
+                </div>
+              </div>
             </div>
             <div className="h-[300px] w-full">
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={emailsGeneratedData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#ffffff10" vertical={false} />
-                  <XAxis dataKey="name" stroke="#94a3b8" fontSize={12} tickLine={false} axisLine={false} />
-                  <YAxis stroke="#94a3b8" fontSize={12} tickLine={false} axisLine={false} />
-                  <Tooltip 
-                    contentStyle={{ backgroundColor: '#111827', border: '1px solid #ffffff10', borderRadius: '12px' }}
-                    itemStyle={{ color: '#fff' }}
+                <AreaChart data={chartData}>
+                  <defs>
+                    <linearGradient id="colorSent" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/>
+                      <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
+                    </linearGradient>
+                    <linearGradient id="colorReplied" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#10b981" stopOpacity={0.3}/>
+                      <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#ffffff05" vertical={false} />
+                  <XAxis 
+                    dataKey="name" 
+                    stroke="#94a3b8" 
+                    fontSize={12} 
+                    tickLine={false} 
+                    axisLine={false} 
                   />
-                  <Line type="monotone" dataKey="emails" stroke="#3B82F6" strokeWidth={3} dot={{ r: 4, fill: '#3B82F6', strokeWidth: 2, stroke: '#111827' }} activeDot={{ r: 6 }} />
-                </LineChart>
+                  <YAxis 
+                    stroke="#94a3b8" 
+                    fontSize={12} 
+                    tickLine={false} 
+                    axisLine={false}
+                    tickFormatter={(value) => `${value}`}
+                  />
+                  <Tooltip 
+                    contentStyle={{ backgroundColor: '#111827', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px' }}
+                    itemStyle={{ fontSize: '12px' }}
+                  />
+                  <Area 
+                    type="monotone" 
+                    dataKey="sent" 
+                    stroke="#3b82f6" 
+                    strokeWidth={2}
+                    fillOpacity={1} 
+                    fill="url(#colorSent)" 
+                  />
+                  <Area 
+                    type="monotone" 
+                    dataKey="replied" 
+                    stroke="#10b981" 
+                    strokeWidth={2}
+                    fillOpacity={1} 
+                    fill="url(#colorReplied)" 
+                  />
+                </AreaChart>
               </ResponsiveContainer>
             </div>
-          </motion.div>
+          </div>
 
-          {/* Campaign Performance (Bar Chart) */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2 }}
-            className="bg-[#1F2937] border border-white/10 rounded-2xl p-6"
-          >
-            <div className="flex items-center gap-2 mb-6">
-              <div className="w-8 h-8 rounded-lg bg-purple-500/10 flex items-center justify-center text-purple-400">
-                <BarChart3 className="w-4 h-4" />
-              </div>
-              <h3 className="text-lg font-heading font-bold text-white">Campaign Performance</h3>
-            </div>
+          {/* Secondary Chart */}
+          <div className="bg-[#1F2937] border border-white/10 rounded-2xl p-6">
+            <h3 className="text-lg font-heading font-bold text-white mb-8">Leads by Industry</h3>
             <div className="h-[300px] w-full">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={campaignPerformanceData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#ffffff10" vertical={false} />
-                  <XAxis dataKey="name" stroke="#94a3b8" fontSize={12} tickLine={false} axisLine={false} />
-                  <YAxis stroke="#94a3b8" fontSize={12} tickLine={false} axisLine={false} />
-                  <Tooltip 
-                    contentStyle={{ backgroundColor: '#111827', border: '1px solid #ffffff10', borderRadius: '12px' }}
-                    itemStyle={{ color: '#fff' }}
-                    cursor={{ fill: '#ffffff05' }}
+                <BarChart data={industryData} layout="vertical">
+                  <CartesianGrid strokeDasharray="3 3" stroke="#ffffff05" horizontal={false} />
+                  <XAxis type="number" hide />
+                  <YAxis 
+                    dataKey="name" 
+                    type="category" 
+                    stroke="#94a3b8" 
+                    fontSize={12} 
+                    tickLine={false} 
+                    axisLine={false}
+                    width={80}
                   />
-                  <Legend iconType="circle" wrapperStyle={{ fontSize: '12px', color: '#94a3b8' }} />
-                  <Bar dataKey="sent" fill="#3B82F6" radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="opened" fill="#8B5CF6" radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="replied" fill="#10B981" radius={[4, 4, 0, 0]} />
+                  <Tooltip 
+                    cursor={{ fill: 'rgba(255,255,255,0.05)' }}
+                    contentStyle={{ backgroundColor: '#111827', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px' }}
+                  />
+                  <Bar dataKey="count" radius={[0, 4, 4, 0]}>
+                    {industryData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={index % 2 === 0 ? '#3b82f6' : '#8b5cf6'} />
+                    ))}
+                  </Bar>
                 </BarChart>
               </ResponsiveContainer>
             </div>
-          </motion.div>
-
-          {/* Lead Engagement (Pie Chart) */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3 }}
-            className="bg-[#1F2937] border border-white/10 rounded-2xl p-6"
-          >
-            <div className="flex items-center gap-2 mb-6">
-              <div className="w-8 h-8 rounded-lg bg-emerald-500/10 flex items-center justify-center text-emerald-400">
-                <PieChartIcon className="w-4 h-4" />
-              </div>
-              <h3 className="text-lg font-heading font-bold text-white">Lead Engagement</h3>
+            <div className="mt-4 space-y-2">
+              <p className="text-xs text-slate-500 text-center">Top industries in your lead database.</p>
             </div>
-            <div className="h-[300px] w-full flex items-center justify-center">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={leadEngagementData}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={60}
-                    outerRadius={100}
-                    paddingAngle={5}
-                    dataKey="value"
-                    stroke="none"
-                  >
-                    {leadEngagementData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip 
-                    contentStyle={{ backgroundColor: '#111827', border: '1px solid #ffffff10', borderRadius: '12px' }}
-                    itemStyle={{ color: '#fff' }}
-                  />
-                  <Legend iconType="circle" wrapperStyle={{ fontSize: '12px', color: '#94a3b8' }} />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-          </motion.div>
-
-          {/* Email Response Rate (KPIs) */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.4 }}
-            className="bg-[#1F2937] border border-white/10 rounded-2xl p-6"
-          >
-            <div className="flex items-center gap-2 mb-6">
-              <div className="w-8 h-8 rounded-lg bg-rose-500/10 flex items-center justify-center text-rose-400">
-                <Activity className="w-4 h-4" />
-              </div>
-              <h3 className="text-lg font-heading font-bold text-white">Email Response Rate</h3>
-            </div>
-            
-            <div className="grid grid-cols-2 gap-4 h-[300px]">
-              <div className="bg-[#111827] rounded-xl p-6 flex flex-col justify-center items-center text-center border border-white/5">
-                <p className="text-slate-400 text-sm font-medium mb-2">Average Open Rate</p>
-                <p className="text-4xl font-bold text-white mb-2">42.8%</p>
-                <span className="text-xs text-emerald-400 bg-emerald-500/10 px-2 py-1 rounded-full">+5.2% vs last month</span>
-              </div>
-              <div className="bg-[#111827] rounded-xl p-6 flex flex-col justify-center items-center text-center border border-white/5">
-                <p className="text-slate-400 text-sm font-medium mb-2">Average Reply Rate</p>
-                <p className="text-4xl font-bold text-white mb-2">14.2%</p>
-                <span className="text-xs text-emerald-400 bg-emerald-500/10 px-2 py-1 rounded-full">+2.1% vs last month</span>
-              </div>
-              <div className="bg-[#111827] rounded-xl p-6 flex flex-col justify-center items-center text-center border border-white/5">
-                <p className="text-slate-400 text-sm font-medium mb-2">Click-Through Rate</p>
-                <p className="text-4xl font-bold text-white mb-2">8.5%</p>
-                <span className="text-xs text-red-400 bg-red-500/10 px-2 py-1 rounded-full">-0.5% vs last month</span>
-              </div>
-              <div className="bg-[#111827] rounded-xl p-6 flex flex-col justify-center items-center text-center border border-white/5">
-                <p className="text-slate-400 text-sm font-medium mb-2">Bounce Rate</p>
-                <p className="text-4xl font-bold text-white mb-2">1.2%</p>
-                <span className="text-xs text-emerald-400 bg-emerald-500/10 px-2 py-1 rounded-full">-0.2% vs last month</span>
-              </div>
-            </div>
-          </motion.div>
+          </div>
         </div>
       </div>
     </DashboardLayout>
